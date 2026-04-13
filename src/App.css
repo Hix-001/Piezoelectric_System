@@ -1,9 +1,4 @@
-/* ─── Reset & Base ──────────────────────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
   --bg:        #050505;
@@ -17,45 +12,32 @@
   --font-mono: 'Space Mono', monospace;
 }
 
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+/* ── Body: scrollable, crosshair cursor ─────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   cursor: crosshair;
+  /* NO overflow:hidden — we need native scroll */
 }
 
-/* ─── Root Wrapper ──────────────────────────────────────────────────────── */
-.root-wrap {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-}
-
-/* ─── Scrollable Container ──────────────────────────────────────────────── */
-.scroll-container {
-  position: absolute;
-  inset: 0;
-  overflow-y: scroll;
-  overflow-x: hidden;
-  scrollbar-width: none;
-  z-index: 1;
-}
-.scroll-container::-webkit-scrollbar { display: none; }
-
-.scroll-space {
+/* ── Tall spacer that drives window scroll ──────────────────────────────── */
+.scroll-spacer {
   height: 500vh;
+  width: 100%;
   pointer-events: none;
 }
 
-/* ─── Fixed Canvas ──────────────────────────────────────────────────────── */
+/* ── Fixed canvas behind everything ────────────────────────────────────── */
 .canvas-wrap {
   position: fixed;
   inset: 0;
-  z-index: 2;
-  pointer-events: none; /* let scroll pass through */
+  z-index: 1;
+  pointer-events: none;
 }
 
 .canvas-wrap canvas {
@@ -64,7 +46,15 @@ html, body {
   height: 100% !important;
 }
 
-/* ─── Loading Screen ────────────────────────────────────────────────────── */
+/* ── Overlay (fixed, on top of canvas) ─────────────────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ── Loading screen ─────────────────────────────────────────────────────── */
 .loading {
   position: fixed;
   inset: 0;
@@ -73,7 +63,6 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
 }
 
 .loading-bar-wrap {
@@ -120,40 +109,25 @@ html, body {
   transform-origin: left center;
 }
 
-/* ─── Overlay ───────────────────────────────────────────────────────────── */
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  pointer-events: none;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: 1fr auto;
-}
-
-/* ─── Progress bar ──────────────────────────────────────────────────────── */
+/* ── Progress bar ───────────────────────────────────────────────────────── */
 .progress-track {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 2px;
   background: rgba(255,255,255,0.05);
-  z-index: 20;
 }
 
-.progress-track .progress-fill {
+.progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--blue), var(--purple));
   transition: width 0.1s linear;
   box-shadow: 0 0 10px var(--purple);
 }
 
-/* ─── Section counter ───────────────────────────────────────────────────── */
+/* ── Section counter ────────────────────────────────────────────────────── */
 .section-counter {
   position: absolute;
-  top: 28px;
-  right: 32px;
+  top: 28px; right: 32px;
   font-family: var(--font-head);
   font-size: 10px;
   letter-spacing: 0.12em;
@@ -163,61 +137,41 @@ html, body {
   gap: 4px;
 }
 
-.counter-num {
-  font-size: 28px;
-  font-weight: 900;
-  color: var(--purple);
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
+.counter-num { font-size: 28px; font-weight: 900; color: var(--purple); line-height: 1; }
 .counter-div { color: var(--text-dim); font-size: 11px; }
 .counter-tot { font-size: 11px; color: var(--text-dim); }
 
-/* ─── Section tag ───────────────────────────────────────────────────────── */
+/* ── Section tag ────────────────────────────────────────────────────────── */
 .section-tag {
   position: absolute;
-  top: 32px;
-  left: 36px;
+  top: 32px; left: 36px;
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.18em;
   color: var(--blue);
   text-transform: uppercase;
   padding: 5px 10px;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59,130,246,0.25);
+  background: rgba(59,130,246,0.05);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* ─── Main text block ───────────────────────────────────────────────────── */
+/* ── Main text ──────────────────────────────────────────────────────────── */
 .text-block {
   position: absolute;
-  bottom: 96px;
-  left: 36px;
+  bottom: 96px; left: 36px;
   max-width: min(540px, 90vw);
 }
 
-.text-hero .main-title {
-  font-size: clamp(38px, 6vw, 82px);
-  line-height: 0.95;
-  letter-spacing: -0.02em;
-}
-
-.text-section .main-title {
-  font-size: clamp(28px, 4.5vw, 60px);
-  line-height: 1.0;
-  letter-spacing: -0.01em;
-}
+.text-hero .main-title    { font-size: clamp(38px, 6vw, 82px); line-height: 0.95; letter-spacing: -0.02em; }
+.text-section .main-title { font-size: clamp(28px, 4.5vw, 60px); line-height: 1.0; letter-spacing: -0.01em; }
 
 .main-title {
   font-family: var(--font-head);
   font-weight: 900;
   color: var(--text);
-  text-shadow:
-    0 0 40px rgba(168, 85, 247, 0.3),
-    0 0 80px rgba(168, 85, 247, 0.1);
+  text-shadow: 0 0 40px rgba(168,85,247,0.3), 0 0 80px rgba(168,85,247,0.1);
 }
 
 .title-line { display: block; }
@@ -225,14 +179,11 @@ html, body {
 .main-title em {
   font-style: normal;
   color: var(--purple);
-  text-shadow:
-    0 0 20px rgba(168, 85, 247, 0.8),
-    0 0 60px rgba(168, 85, 247, 0.4);
+  text-shadow: 0 0 20px rgba(168,85,247,0.8), 0 0 60px rgba(168,85,247,0.4);
 }
 
 .divider {
-  width: 48px;
-  height: 2px;
+  width: 48px; height: 2px;
   background: linear-gradient(90deg, var(--blue), var(--purple));
   margin: 18px 0;
   box-shadow: 0 0 12px var(--blue);
@@ -241,7 +192,6 @@ html, body {
 .sub-title {
   font-family: var(--font-mono);
   font-size: clamp(9px, 1.2vw, 12px);
-  font-weight: 400;
   letter-spacing: 0.18em;
   color: var(--blue);
   text-transform: uppercase;
@@ -253,15 +203,14 @@ html, body {
   font-size: clamp(12px, 1.4vw, 15px);
   font-weight: 300;
   line-height: 1.7;
-  color: rgba(232, 232, 240, 0.65);
+  color: rgba(232,232,240,0.65);
   max-width: 440px;
 }
 
-/* ─── Scroll hint ───────────────────────────────────────────────────────── */
+/* ── Scroll hint ────────────────────────────────────────────────────────── */
 .scroll-hint {
   position: absolute;
-  bottom: 96px;
-  right: 36px;
+  bottom: 96px; right: 36px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -275,8 +224,7 @@ html, body {
 }
 
 .scroll-line {
-  width: 1px;
-  height: 48px;
+  width: 1px; height: 48px;
   background: linear-gradient(to bottom, var(--purple), transparent);
 }
 
@@ -289,37 +237,30 @@ html, body {
   transform: rotate(180deg);
 }
 
-/* ─── Bottom spec strip ─────────────────────────────────────────────────── */
+/* ── Spec strip ─────────────────────────────────────────────────────────── */
 .spec-strip {
   position: absolute;
-  bottom: 28px;
-  left: 36px;
-  right: 36px;
+  bottom: 28px; left: 36px; right: 36px;
   display: flex;
   align-items: center;
   gap: 16px;
   font-family: var(--font-mono);
   font-size: 8px;
   letter-spacing: 0.15em;
-  color: rgba(107, 107, 138, 0.6);
+  color: rgba(107,107,138,0.6);
   border-top: 1px solid rgba(255,255,255,0.04);
   padding-top: 12px;
 }
 
-.spec-dot { color: rgba(107, 107, 138, 0.3); font-size: 6px; }
-
-.spec-live {
-  color: #22c55e;
-  animation: pulse-live 2s infinite;
-  margin-left: auto;
-}
+.spec-dot  { color: rgba(107,107,138,0.3); font-size: 6px; }
+.spec-live { color: #22c55e; animation: pulse-live 2s infinite; margin-left: auto; }
 
 @keyframes pulse-live {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
 }
 
-/* ─── Circuit Scanlines (section 2 only) ────────────────────────────────── */
+/* ── Scanlines ──────────────────────────────────────────────────────────── */
 .scanlines {
   position: fixed;
   inset: 0;
@@ -327,10 +268,8 @@ html, body {
   z-index: 5;
   background: repeating-linear-gradient(
     to bottom,
-    transparent 0px,
-    transparent 3px,
-    rgba(0, 0, 0, 0.15) 3px,
-    rgba(0, 0, 0, 0.15) 4px
+    transparent 0px, transparent 3px,
+    rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 4px
   );
   animation: scanline-shift 8s linear infinite;
   mix-blend-mode: overlay;
@@ -341,55 +280,21 @@ html, body {
   to   { background-position: 0 100px; }
 }
 
-/* ─── Vignette overlay ──────────────────────────────────────────────────── */
+/* ── Vignette ───────────────────────────────────────────────────────────── */
 body::after {
   content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 3;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 55%,
-    rgba(5, 5, 5, 0.6) 100%
-  );
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(5,5,5,0.6) 100%);
 }
 
-/* ─── Custom cursor ─────────────────────────────────────────────────────── */
-body {
-  cursor: none;
-}
-
-.cursor {
-  position: fixed;
-  width: 8px;
-  height: 8px;
-  background: var(--purple);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 9999;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 12px var(--purple), 0 0 24px rgba(168,85,247,0.4);
-  transition: width 0.15s, height 0.15s, background 0.15s;
-}
-
-.cursor-ring {
-  position: fixed;
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 9998;
-  transform: translate(-50%, -50%);
-  transition: transform 0.08s linear, opacity 0.2s;
-}
-
-/* ─── Responsive tweaks ─────────────────────────────────────────────────── */
+/* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .text-block { left: 20px; bottom: 80px; }
-  .section-tag { left: 20px; top: 20px; }
+  .text-block      { left: 20px; bottom: 80px; }
+  .section-tag     { left: 20px; top: 20px; font-size: 7px; }
   .section-counter { right: 20px; top: 20px; }
-  .spec-strip { left: 20px; right: 20px; flex-wrap: wrap; gap: 8px; }
-  .scroll-hint { display: none; }
+  .spec-strip      { left: 20px; right: 20px; flex-wrap: wrap; gap: 8px; }
+  .scroll-hint     { display: none; }
 }
