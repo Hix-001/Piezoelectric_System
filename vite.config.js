@@ -2,11 +2,14 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  base: '/Piezoelectric_System/',
+  // Ensure this matches your NEW repo name exactly
+  base: '/Piezoelectric_System/', 
+
   plugins: [react()],
+
   build: {
     outDir: 'dist',
     sourcemap: false,
-    // We are removing the manualChunks object to satisfy Vite 8 requirements
+    // Removed rollupOptions and manualChunks to fix the build error
   },
 })
