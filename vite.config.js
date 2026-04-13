@@ -2,10 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  // ⚠️  CHANGE THIS to your actual GitHub repo name.
-  // e.g. repo is  github.com/hix-001/piezo-power  →  base: '/piezo-power/'
-  // If this is your user site  (username.github.io)  →  base: '/'
-  base: 'https://github.com/Hix-001/Pizeoelectric_System',
+  base: '/Pizeoelectric_System/',
 
   plugins: [react()],
 
