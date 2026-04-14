@@ -2,11 +2,11 @@
 
 ```
 ██████╗ ██╗███████╗███████╗ ██████╗ 
-██╔══██╗██║██╔════╝╚════██║██╔═████╗
-██████╔╝██║█████╗      ██╔╝██║██╔██║
-██╔═══╝ ██║██╔══╝     ██╔╝ ████╔╝██║
-██║     ██║███████╗   ██║  ╚██████╔╝
-╚═╝     ╚═╝╚══════╝   ╚═╝   ╚═════╝ 
+██╔══██╗██║██╔════╝╚══███╔╝██╔═══██╗
+██████╔╝██║█████╗    ███╔╝ ██║   ██║
+██╔═══╝ ██║██╔══╝   ███╔╝  ██║   ██║
+██║     ██║███████╗███████╗╚██████╔╝
+╚═╝     ╚═╝╚══════╝╚══════╝ ╚═════╝ 
 ```
 
 # ⚡ Piezoelectric Footstep Power Generator
@@ -31,11 +31,11 @@
 
 ## 🧠 What & Why
 
-This is a **learning project** — plain and simple. I wanted to understand how modern 3D scrollytelling websites work after getting obsessed with sites like [chkstepan.com](https://chkstepan.com), [killianherzer.com](https://killianherzer.com), and [darkstarlabs.io](https://darkstarlabs.io). The goal wasn't to ship a product — it was to answer the question:
+This is a **learning project** — plain and simple. I wanted to understand how modern 3D scrollytelling websites work after getting obsessed with a few sites. The goal wasn't to ship a product — it was to answer the question:
 
 > *How do you take a real engineering concept and turn it into an immersive, cinematic web experience?*
 
-The engineering topic — a **Piezoelectric Footstep Power Generator** — is real. Piezoelectric tiles can generate electricity from the pressure of footsteps. I used it as the theme because it's visual, layered, and actually interesting to explain in 3D.
+The engineering topic — a **Piezoelectric Footstep Power Generator** — is real. Piezoelectric tiles can generate electricity from the pressure of footsteps. I had also made a real world piezoelectric energy harvesting system model therefore I used it as the theme because it's visual, layered, and actually interesting to explain in 3D. 
 
 What you'll find here is me learning React Three Fiber, WebGL post-processing, scroll-driven camera animation, and shader effects — all stitched together into something that hopefully looks intentional.
 
@@ -87,16 +87,6 @@ EnergyMat Assembly
 └── Spark Particles (BufferGeometry points flying sensor → battery)
 ```
 
-### Fonts
-
-| Font | Weight | Used For |
-|------|--------|---------|
-| [Syne](https://fonts.google.com/specimen/Syne) | 700, 800 | Section headings |
-| [DM Sans](https://fonts.google.com/specimen/DM+Sans) | 300, 400 | Body text |
-| [Space Mono](https://fonts.google.com/specimen/Space+Mono) | 400, 700 | Technical labels, tags |
-
----
-
 ## 🚀 Run It Locally
 
 You need **Node.js v18+** installed. That's it.
@@ -136,25 +126,6 @@ Output goes to `/dist`. You can preview it locally with:
 npm run preview
 ```
 
-### File Structure
-
-```
-Piezoelectric_System/
-│
-├── .github/
-│   └── workflows/
-│       └── deploy.yml          ← GitHub Actions auto-build & deploy
-│
-├── src/
-│   ├── App.jsx                 ← All 3D components + scroll logic + UI
-│   ├── App.css                 ← Full dark stylesheet
-│   └── main.jsx                ← React entry point
-│
-├── index.html                  ← Google Fonts + root div
-├── vite.config.js              ← Build config + GitHub Pages base path
-├── package.json
-└── package-lock.json
-```
 
 ### Troubleshooting
 
@@ -189,11 +160,6 @@ Running a full WebGL scene in the browser on a mid-range laptop requires some th
 ## 🎨 Design Notes
 
 **Color palette** — Dark navy (`#0b0c14`) instead of pure black. Pure black makes colors look neon-harsh. Navy gives depth without washing out the purple/blue glow effects.
-
-**Typography choices:**
-- `Syne` feels editorial and geometric — it's what luxury/tech brands use for large display text
-- `DM Sans` at weight 300 keeps body text readable without competing with the headings
-- `Space Mono` for technical labels adds the "embedded systems" feel without going full terminal aesthetic
 
 **The foam layer** — `MeshTransmissionMaterial` gives it that frosted acrylic look. The iridescence parameters add subtle rainbow shifts when the camera moves. This was the single most visually impactful material choice.
 
