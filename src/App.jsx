@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useEffect, Suspense } from 'react'
+import { useRef, useMemo, useState, useEffect, useCallback, Suspense } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import {
   Environment, ContactShadows, Stars,
@@ -26,6 +26,25 @@ const SENSOR_POS = [
   [-0.95,-0.18, 0.55],[0,-0.18, 0.55],[0.95,-0.18, 0.55],
 ]
 const BATTERY_POS = [[2.35,-0.12,-0.15],[2.35,-0.12,0.25]]
+
+// ─── EXPLODED / ASSEMBLED POSITIONS (module-level, zero allocations at runtime)
+// Each sensor fans outward (X) and lifts (Y), with minor Z separation by row
+const SENSOR_EXPLODED = SENSOR_POS.map((pos, i) => [
+  pos[0] + (i % 3 - 1) * 0.7,   // spread left/center/right
+  pos[1] + 0.65,                  // lift up
+  pos[2] + (Math.floor(i / 3) - 0.5) * 0.7, // front/back row separation
+])
+
+// Batteries pull outward (+X) and rise, fanning slightly on Z
+const BATTERY_EXPLODED = BATTERY_POS.map((pos, i) => [
+  pos[0] + 0.55,
+  pos[1] + 0.35,
+  pos[2] + (i === 0 ? -0.3 : 0.3),
+])
+
+// PCB slides right and lifts
+const PCB_ASSEMBLED = [2.05, -0.18, 0]
+const PCB_EXPLODED  = [3.6,   0.55, 0]
 
 const CAM = [
   { pos:[0,2.8,8.5],   look:[0,0,0]       },
@@ -69,29 +88,36 @@ const SECTIONS = [
 ]
 
 // ─── SENSOR ──────────────────────────────────────────────────────────────────
-function Sensor({ position, active }) {
+// groupRef: plain ref object { current: null } passed by EnergyMat so the
+// parent can mutate .position directly inside its own useFrame without
+// triggering a React re-render.
+function Sensor({ position, active, groupRef }) {
   const meshRef  = useRef()
   const glowRef  = useRef()
   const lightRef = useRef()
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return
-    const t = clock.elapsedTime
-    const pulse = active ? Math.max(0, Math.sin(t * 4 + position[0] * 3)) * 0.8 + 0.4 : 0.12
+    const t     = clock.elapsedTime
+    const pulse = active
+      ? Math.max(0, Math.sin(t * 4 + position[0] * 3)) * 0.8 + 0.4
+      : 0.12
     meshRef.current.material.emissiveIntensity = THREE.MathUtils.lerp(
-      meshRef.current.material.emissiveIntensity, pulse, 0.08
+      meshRef.current.material.emissiveIntensity, pulse, 0.08,
     )
     if (lightRef.current) lightRef.current.intensity = active ? pulse * 1.5 : 0
     if (glowRef.current) {
       glowRef.current.scale.setScalar(active ? 1 + pulse * 0.3 : 1)
       glowRef.current.material.opacity = THREE.MathUtils.lerp(
-        glowRef.current.material.opacity, active ? pulse * 0.3 : 0, 0.1
+        glowRef.current.material.opacity, active ? pulse * 0.3 : 0, 0.1,
       )
     }
   })
 
   return (
-    <group position={position}>
+    // groupRef is a plain { current } object — React assigns the Three.js
+    // Group to it on mount, letting EnergyMat's useFrame move it imperatively.
+    <group ref={groupRef} position={position}>
       <mesh ref={meshRef} castShadow>
         <cylinderGeometry args={[0.13,0.13,0.07,24]} />
         <meshStandardMaterial color={C.gold} emissive={C.blue} emissiveIntensity={0.12} metalness={0.95} roughness={0.08} />
@@ -125,7 +151,7 @@ function Wire({ from, to, color }) {
   )
 }
 
-// ─── SPARK PARTICLES (with smooth opacity fade) ───────────────────────────────
+// ─── SPARK PARTICLES ──────────────────────────────────────────────────────────
 function SparkParticles({ active, count }) {
   const ref        = useRef()
   const opacityRef = useRef(0)
@@ -152,12 +178,11 @@ function SparkParticles({ active, count }) {
 
   useFrame((_, delta) => {
     if (!ref.current) return
-    // Smooth opacity fade in/out — fixes the abrupt disappear on reverse scroll
     const targetOpacity = active ? 0.9 : 0
     opacityRef.current = THREE.MathUtils.lerp(opacityRef.current, targetOpacity, delta * 3.5)
     ref.current.material.opacity = opacityRef.current
 
-    if (opacityRef.current < 0.02) return // skip position updates when invisible
+    if (opacityRef.current < 0.02) return
     const pos = ref.current.geometry.attributes.position.array
     for (let i = 0; i < count; i++) {
       data.ts[i] += delta * data.speeds[i]
@@ -192,35 +217,109 @@ function EnergyMat({ scrollT, particleCount }) {
   const foamRef  = useRef()
   const pcbRef   = useRef()
   const { camera } = useThree()
+
+  // Camera state — persists across frames without re-renders
   const camPos  = useRef(new THREE.Vector3(...CAM[0].pos))
   const camLook = useRef(new THREE.Vector3(...CAM[0].look))
 
+  // ── Disassembly refs ───────────────────────────────────────────────────────
+  // Plain { current: null } objects — React will populate .current with the
+  // Three.js Group/Mesh on mount. We then mutate .position directly in
+  // useFrame, which is the correct R3F imperative pattern and never triggers
+  // a React re-render.
+  const sensorRefs  = useRef(SENSOR_POS.map(() => ({ current: null })))
+  const batteryRefs = useRef(BATTERY_POS.map(() => ({ current: null })))
+
   useFrame((_, delta) => {
+    // ── Camera ──────────────────────────────────────────────────────────────
     const sec = Math.min(4, Math.floor(scrollT * 5))
     const tgt = CAM[sec]
-    camPos.current.lerp(new THREE.Vector3(...tgt.pos), delta * 1.8)
+    camPos.current.lerp(new THREE.Vector3(...tgt.pos),  delta * 1.8)
     camLook.current.lerp(new THREE.Vector3(...tgt.look), delta * 1.8)
     camera.position.copy(camPos.current)
     camera.lookAt(camLook.current)
 
     if (!groupRef.current) return
+
+    // ── Base rotation ────────────────────────────────────────────────────────
     if (sec === 0) {
       groupRef.current.rotation.y += delta * 0.2
     } else {
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, 0, delta * 2.5)
+      groupRef.current.rotation.y = THREE.MathUtils.lerp(
+        groupRef.current.rotation.y, 0, delta * 2.5,
+      )
     }
 
+    // ── Foam glass lift ──────────────────────────────────────────────────────
     if (foamRef.current) {
       const targetY = sec >= 1 ? 1.9 : 0.18
-      foamRef.current.position.y = THREE.MathUtils.lerp(foamRef.current.position.y, targetY, delta * 2)
+      foamRef.current.position.y = THREE.MathUtils.lerp(
+        foamRef.current.position.y, targetY, delta * 2,
+      )
     }
 
+    // ── PCB emissive pulse ────────────────────────────────────────────────────
     if (pcbRef.current) {
       const targetE = sec === 2 ? 1.2 : 0.15
       pcbRef.current.material.emissiveIntensity = THREE.MathUtils.lerp(
-        pcbRef.current.material.emissiveIntensity, targetE, delta * 3
+        pcbRef.current.material.emissiveIntensity, targetE, delta * 3,
       )
     }
+
+    // ── Disassembly / Assembly position animation ─────────────────────────────
+    //
+    // scrollT 0.0 → 0.4 : components move from assembled → exploded  (disassembly)
+    // scrollT 0.4 → 0.6 : components stay at full exploded state
+    // scrollT 0.6 → 1.0 : components move from exploded → assembled  (assembly)
+    //
+    // `explodedT` is a single 0→1 scalar:
+    //   0 = fully assembled, 1 = fully exploded
+    //
+    const clamp01 = (v) => Math.min(1, Math.max(0, v))
+    let explodedT
+    if (scrollT <= 0.4) {
+      // Disassembly: ramp 0 → 1 as scrollT goes 0 → 0.4
+      explodedT = clamp01(THREE.MathUtils.mapLinear(scrollT, 0.0, 0.4, 0, 1))
+    } else if (scrollT >= 0.6) {
+      // Assembly: ramp 1 → 0 as scrollT goes 0.6 → 1.0
+      explodedT = clamp01(THREE.MathUtils.mapLinear(scrollT, 0.6, 1.0, 1, 0))
+    } else {
+      // Dwell zone: stay fully exploded
+      explodedT = 1
+    }
+
+    // ── Sensors ──────────────────────────────────────────────────────────────
+    SENSOR_POS.forEach((assembled, i) => {
+      const ref = sensorRefs.current[i]
+      if (!ref.current) return
+      const exploded = SENSOR_EXPLODED[i]
+      ref.current.position.set(
+        THREE.MathUtils.lerp(assembled[0], exploded[0], explodedT),
+        THREE.MathUtils.lerp(assembled[1], exploded[1], explodedT),
+        THREE.MathUtils.lerp(assembled[2], exploded[2], explodedT),
+      )
+    })
+
+    // ── PCB ───────────────────────────────────────────────────────────────────
+    if (pcbRef.current) {
+      pcbRef.current.position.set(
+        THREE.MathUtils.lerp(PCB_ASSEMBLED[0], PCB_EXPLODED[0], explodedT),
+        THREE.MathUtils.lerp(PCB_ASSEMBLED[1], PCB_EXPLODED[1], explodedT),
+        THREE.MathUtils.lerp(PCB_ASSEMBLED[2], PCB_EXPLODED[2], explodedT),
+      )
+    }
+
+    // ── Batteries ─────────────────────────────────────────────────────────────
+    BATTERY_POS.forEach((assembled, i) => {
+      const ref = batteryRefs.current[i]
+      if (!ref.current) return
+      const exploded = BATTERY_EXPLODED[i]
+      ref.current.position.set(
+        THREE.MathUtils.lerp(assembled[0], exploded[0], explodedT),
+        THREE.MathUtils.lerp(assembled[1], exploded[1], explodedT),
+        THREE.MathUtils.lerp(assembled[2], exploded[2], explodedT),
+      )
+    })
   })
 
   const sec           = Math.min(4, Math.floor(scrollT * 5))
@@ -228,12 +327,11 @@ function EnergyMat({ scrollT, particleCount }) {
   const storageActive = sec === 3
   const conclusionSec = sec === 4
 
-  // Battery emissive lerped via material ref
   const batEmiTarget = storageActive || conclusionSec ? 1.8 : 0.3
 
   return (
     <group ref={groupRef}>
-      {/* Base */}
+      {/* Base plate */}
       <mesh receiveShadow position={[0,-0.28,0]}>
         <boxGeometry args={[3.6,0.09,2.1]} />
         <meshStandardMaterial color="#0d0f1f" metalness={0.6} roughness={0.4} />
@@ -247,7 +345,7 @@ function EnergyMat({ scrollT, particleCount }) {
         </mesh>
       ))}
 
-      {/* Foam glass layer */}
+      {/* Foam / glass layer — lifts to expose components on scroll */}
       <mesh ref={foamRef} position={[0,0.18,0]} castShadow>
         <boxGeometry args={[3.6,0.32,2.1]} />
         <MeshTransmissionMaterial
@@ -258,13 +356,23 @@ function EnergyMat({ scrollT, particleCount }) {
         />
       </mesh>
 
-      {SENSOR_POS.map((pos,i) => <Sensor key={i} position={pos} active={sensorActive} />)}
+      {/* Sensors — each receives a plain ref object so EnergyMat's useFrame
+          can imperatively move the group without React re-renders           */}
+      {SENSOR_POS.map((pos, i) => (
+        <Sensor
+          key={i}
+          position={pos}
+          active={sensorActive}
+          groupRef={sensorRefs.current[i]}
+        />
+      ))}
 
-      {/* PCB */}
-      <mesh ref={pcbRef} position={[2.05,-0.18,0]} castShadow>
+      {/* PCB — ref points to the mesh; useFrame writes to .position directly */}
+      <mesh ref={pcbRef} position={PCB_ASSEMBLED} castShadow>
         <boxGeometry args={[0.75,0.04,0.65]} />
         <meshStandardMaterial color={C.pcb} emissive={C.pcb} emissiveIntensity={0.15} metalness={0.2} roughness={0.7} />
       </mesh>
+      {/* PCB surface components (static relative to PCB mesh position) */}
       {[[-0.1,0.04],[0.1,0.03],[0,0.025]].map(([x,h],i) => (
         <mesh key={i} position={[2.05+x,-0.14,i*0.1-0.1]}>
           <boxGeometry args={[0.08,h,0.06]} />
@@ -272,9 +380,9 @@ function EnergyMat({ scrollT, particleCount }) {
         </mesh>
       ))}
 
-      {/* Batteries */}
-      {BATTERY_POS.map((pos,i) => (
-        <group key={i} position={pos}>
+      {/* Batteries — ref on each group so useFrame can move them */}
+      {BATTERY_POS.map((pos, i) => (
+        <group key={i} ref={batteryRefs.current[i]} position={pos}>
           <mesh rotation={[Math.PI/2,0,0]} castShadow>
             <cylinderGeometry args={[0.09,0.09,0.36,20]} />
             <meshStandardMaterial
@@ -340,14 +448,14 @@ function SceneInner({ scrollT }) {
   )
 }
 
-// ─── LOADING SCREEN (fast 2D cinematic) ──────────────────────────────────────
+// ─── LOADING SCREEN ────────────────────────────────────────────────────────────
 function LoadingScreen({ done }) {
   const [phase, setPhase] = useState(0)
 
   useEffect(() => {
     if (done) return
     const timers = [
-      setTimeout(() => setPhase(1), 80),
+      setTimeout(() => setPhase(1),  80),
       setTimeout(() => setPhase(2), 400),
       setTimeout(() => setPhase(3), 900),
       setTimeout(() => setPhase(4), 1400),
@@ -376,7 +484,6 @@ function LoadingScreen({ done }) {
 
           {/* Center content */}
           <div className="loader-center">
-            {/* Bolt icon */}
             <motion.div
               className="loader-bolt"
               initial={{ scale: 0, rotate: -20 }}
@@ -386,7 +493,6 @@ function LoadingScreen({ done }) {
               ⚡
             </motion.div>
 
-            {/* Title lines */}
             <div className="loader-title-wrap">
               {['PIEZOELECTRIC', 'POWER SYSTEM'].map((word, wi) => (
                 <div key={wi} className="loader-line-clip">
@@ -402,7 +508,6 @@ function LoadingScreen({ done }) {
               ))}
             </div>
 
-            {/* Data readout */}
             <motion.div
               className="loader-readout"
               initial={{ opacity: 0 }}
@@ -414,7 +519,6 @@ function LoadingScreen({ done }) {
               <span className="loader-mono">STATUS: <em className="loader-ok">OK</em></span>
             </motion.div>
 
-            {/* Progress bar */}
             <div className="loader-bar-wrap">
               <motion.div
                 className="loader-bar"
@@ -425,13 +529,11 @@ function LoadingScreen({ done }) {
             </div>
           </div>
 
-          {/* Corner decorations */}
           <div className={`loader-corner tl ${phase >= 2 ? 'visible' : ''}`} />
           <div className={`loader-corner tr ${phase >= 2 ? 'visible' : ''}`} />
           <div className={`loader-corner bl ${phase >= 2 ? 'visible' : ''}`} />
           <div className={`loader-corner br ${phase >= 2 ? 'visible' : ''}`} />
 
-          {/* Flash on exit */}
           <motion.div
             className="loader-flash"
             initial={{ opacity: 0 }}
@@ -452,12 +554,10 @@ function TextOverlay({ scrollT }) {
 
   return (
     <div className="overlay">
-      {/* Top progress bar */}
       <div className="progress-track">
         <div className="progress-fill" style={{ width: `${scrollT * 100}%` }} />
       </div>
 
-      {/* Section tag — top left */}
       <AnimatePresence mode="wait">
         <motion.div key={section.tag} className="section-tag"
           initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
@@ -466,7 +566,6 @@ function TextOverlay({ scrollT }) {
         </motion.div>
       </AnimatePresence>
 
-      {/* Main text — bottom left */}
       <div className={`text-block ${isHero ? 'text-hero' : 'text-section'}`}>
         <AnimatePresence mode="wait">
           <motion.div key={section.title.join('')}
@@ -486,7 +585,6 @@ function TextOverlay({ scrollT }) {
         </AnimatePresence>
       </div>
 
-      {/* Scroll hint */}
       <AnimatePresence>
         {scrollT < 0.03 && (
           <motion.div className="scroll-hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -497,62 +595,31 @@ function TextOverlay({ scrollT }) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {sec === 2 && <div className="scanlines" aria-hidden="true" />}
-
-      {/* Bottom bar — LIVE only + GitHub */}
-      <div className="spec-strip">
-        <span className="spec-live">● LIVE</span>
-        <a
-          className="spec-github"
-          href="https://github.com/Hix-001"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          github.com/Hix-001 ↗
-        </a>
-      </div>
     </div>
   )
 }
 
-// ─── APP ROOT ─────────────────────────────────────────────────────────────────
+// ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [scrollT, setScrollT] = useState(0)
-  const [loaded, setLoaded]   = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const onScroll = () => {
-      const el  = document.documentElement
-      const max = el.scrollHeight - el.clientHeight
-      setScrollT(max > 0 ? window.scrollY / max : 0)
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(() => setLoaded(true), 1800)
-    return () => clearTimeout(t)
+  const onScroll = useCallback((e) => {
+    const scrollY   = e.target.scrollTop
+    const scrollMax = e.target.scrollHeight - e.target.clientHeight
+    setScrollT(scrollY / scrollMax)
   }, [])
 
   return (
     <>
-      <div className="scroll-spacer" />
-
-      <div className="canvas-wrap">
-        <Canvas
-          camera={{ position: [0,2.8,8.5], fov: 50, near: 0.1, far: 100 }}
-          gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-          dpr={[1,1.5]}
-          shadows
-        >
-          <SceneInner scrollT={scrollT} />
-        </Canvas>
-      </div>
-
+      <LoadingScreen done={!loading} />
+      <Canvas shadows camera={{ position: CAM[0].pos, fov: 45, near: 0.1, far: 80 }}>
+        <SceneInner scrollT={scrollT} />
+      </Canvas>
       <TextOverlay scrollT={scrollT} />
-      <LoadingScreen done={loaded} />
+      <div className="scroll-container" onScroll={onScroll}>
+        <div style={{ height: '500vh' }} />
+      </div>
     </>
   )
 }

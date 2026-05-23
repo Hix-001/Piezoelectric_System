@@ -70,7 +70,7 @@ This project uses a fully **browser-side, zero-cost** architecture. No backend. 
 | [Three.js](https://threejs.org/) | 0.169 | 3D math, geometry, materials |
 | [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber) | 8 | React renderer for Three.js |
 | [@react-three/drei](https://github.com/pmndrs/drei) | 9 | Three.js helpers (MeshTransmission, Stars, ContactShadows, etc.) |
-| [@react-three/postprocessing](https://github.com/pmndrs/react-postprocessing) | 2 | Bloom, Glitch, ChromaticAberration |
+| [@react-three/postprocessing](https://github.pmndrs/react-postprocessing) | 2 | Bloom, Glitch, ChromaticAberration |
 | [Framer Motion](https://www.framer.com/motion/) | 11 | HTML text animations and loading screen |
 
 ### 3D Components (all procedural — no model files)
@@ -154,6 +154,18 @@ Running a full WebGL scene in the browser on a mid-range laptop requires some th
 - **`MeshTransmissionMaterial`** — only used once (the foam layer). This is the heaviest material in Drei. Using it on multiple objects would tank performance.
 - **Spark particles** — `BufferGeometry` with manual `Float32Array` position updates. Faster than instanced meshes for this use case since positions change every frame.
 - **Window scroll instead of container scroll** — the original version used a Framer Motion container ref which broke on mobile. Switched to `window.addEventListener('scroll')` which is native, passive, and works everywhere.
+
+---
+
+## 🎨 Design Notes
+
+**Color palette** — Dark navy (`#0b0c14`) instead of pure black. Pure black makes colors look neon-harsh. Navy gives depth without washing out the purple/blue glow effects.
+
+**The foam layer** — `MeshTransmissionMaterial` gives it that frosted acrylic look. The iridescence parameters add subtle rainbow shifts when the camera moves. This was the single most visually impactful material choice.
+
+**Scroll-driven camera** — instead of GSAP ScrollTrigger (which requires configuring a scroll proxy with R3F), I used a simple `useFrame` lerp between keyframe positions. Smoother transitions, less configuration.
+
+---
 
 ## 📚 What I Learned
 
