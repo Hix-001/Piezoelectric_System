@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Music, LucideFacebook, Twitter, Youtube, Instagram } from "lucide-react";
+import * as Icons from "lucide-react";
 
 export default function App() {
   return (
