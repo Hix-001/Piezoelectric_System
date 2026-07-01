@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Music2, Facebook, Twitter, Youtube, Instagram } from "lucide-react";
+import { Music, Facebook, Twitter, Youtube, Instagram } from "lucide-react";
 
 export default function App() {
   return (
